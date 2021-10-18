@@ -1,4 +1,4 @@
-package com.internship.webapp.webapp;
+package com.internship.webapp;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -8,6 +8,7 @@ class WebAppApplicationTests {
 
     @Test
     void contextLoads() {
+
     }
 
 }
