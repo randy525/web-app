@@ -1,5 +1,6 @@
 package com.internship.webapp.controllers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.internship.webapp.model.Department;
 import com.internship.webapp.servicies.DepartmentsService;
 import lombok.RequiredArgsConstructor;
@@ -17,12 +18,12 @@ public class DepartmentsController {
     private final DepartmentsService service;
 
     @GetMapping("/departments")
-    public List<Department> getDepartment() {
+    public List<Department> getAllDepartments() {
         return service.findAll();
     }
 
     @PostMapping(value = "/departments", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<String> addDepartment(@Valid @RequestBody Department department) {
+    public Department addDepartment(@Valid @RequestBody Department department) {
         return service.save(department);
     }
 

@@ -22,7 +22,7 @@ public class EmployeesController {
     }
 
     @PostMapping(value = "/employees", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<String> addEmployee(@Valid @RequestBody Employee employee) {
+    public Employee addEmployee(@Valid @RequestBody Employee employee) {
         return service.save(employee);
     }
 

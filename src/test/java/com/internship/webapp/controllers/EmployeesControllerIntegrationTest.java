@@ -157,7 +157,7 @@ class EmployeesControllerIntegrationTest {
         mockMvc.perform(post("/employees")
                 .contentType("application/json")
                 .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(addedEmployee))
-        ).andExpect(status().isCreated());
+        ).andExpect(status().isOk());
 
        Employee newEmployee = entityManager.find(Employee.class, addedEmployee.getId());
 
@@ -223,7 +223,7 @@ class EmployeesControllerIntegrationTest {
         mockMvc.perform(put("/employees/1")
                 .contentType("application/json")
                 .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(updatedEmployee))
-        ).andExpect(status().isCreated());
+        ).andExpect(status().isOk());
 
         Employee actualEmployee = entityManager.find(Employee.class, updatedEmployee.getId());
 

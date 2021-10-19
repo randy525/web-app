@@ -53,12 +53,6 @@ class DepartmentsControllerIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private DataSource dataSource;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @Autowired
     private SessionFactory sessionFactory;
 
     @Autowired
@@ -135,7 +129,7 @@ class DepartmentsControllerIntegrationTest {
         mockMvc.perform(post("/departments")
                         .contentType("application/json")
                         .content(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(newDepartment)))
-                        .andExpect(status().isCreated());
+                        .andExpect(status().isOk());
 
         Department actualDepartment = entityManager.find(Department.class, 3L);
 
@@ -179,7 +173,7 @@ class DepartmentsControllerIntegrationTest {
         mockMvc.perform(put("/departments/1")
                         .contentType("application/json")
                         .content(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(newDepartment)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isOk());
 
         Department actualDepartment = entityManager.find(Department.class, 1L);
 
