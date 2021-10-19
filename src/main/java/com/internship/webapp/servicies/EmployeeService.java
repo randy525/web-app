@@ -1,11 +1,9 @@
 package com.internship.webapp.servicies;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.internship.webapp.model.Employee;
-import com.internship.webapp.model.Views;
 import com.internship.webapp.repositories.GenericRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;

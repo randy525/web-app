@@ -1,22 +1,21 @@
 package com.internship.webapp.validation;
 
 import com.internship.webapp.repositories.EmployeeRepository;
-import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.validation.ConstraintValidator;
 import javax.validation.ConstraintValidatorContext;
-import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class UniqueValidator implements ConstraintValidator<UniqueField, String> {
 
-    private EmployeeRepository repository;
+
+    private final EmployeeRepository repository;
 
     @Autowired
-    private void setRepository(EmployeeRepository repository) {
+    public UniqueValidator(EmployeeRepository repository) {
         this.repository = repository;
     }
 

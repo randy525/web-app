@@ -5,10 +5,9 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.internship.webapp.model.Employee;
 import lombok.RequiredArgsConstructor;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,13 +15,16 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.test.annotation.Commit;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
+import javax.persistence.EntityManager;
 import javax.sql.DataSource;
 
 import java.sql.*;
@@ -36,6 +38,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class EmployeesControllerIntegrationTest {
 
     @Autowired
@@ -50,98 +54,134 @@ class EmployeesControllerIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private SessionFactory sessionFactory;
+
+    @Autowired
+    private EntityManager entityManager;
+
     @BeforeEach
     void init() {
         objectMapper.disable(MapperFeature.USE_ANNOTATIONS);
     }
 
-    @Sql("init.sql")
-    @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    @BeforeAll
+    void initTable() {
+
+        Employee employee1 = new Employee(1L,
+                "Alexey",
+                "Neikulov",
+                10L,
+                "alex.neikulov@gmail.com",
+                "060748612",
+                Date.valueOf(LocalDate.of(2021, 10, 17)),
+                "IT_PROG",
+                17000,
+                null,
+                100L);
+        Employee employee2 = new Employee(2L,
+                "John",
+                "Wick",
+                10L,
+                "dog.wick@gmail.com",
+                "060748481",
+                Date.valueOf(LocalDate.of(2021, 10, 16)),
+                "IT_PROG",
+                15000,
+                null,
+                100L);
+
+        Session session = sessionFactory.openSession();
+        session.getTransaction().begin();
+        session.save(employee1);
+        session.save(employee2);
+        session.flush();
+        session.getTransaction().commit();
+    }
+
+
+    @Order(1)
     @Test
     void getEmployees() throws Exception {
 
-        List<Employee> expectedEmployes = List.of(
-                new Employee(0L,
+        List<Employee> expectedEmployees = List.of(
+                new Employee(1L,
                         "Alexey",
                         "Neikulov",
-                        10,
+                        10L,
                         "alex.neikulov@gmail.com",
                         "060748612",
                         Date.valueOf(LocalDate.of(2021, 10, 17)),
                         "IT_PROG",
                         17000,
-                        0,
-                        100),
-                new Employee(1L,
+                        null,
+                        100L),
+                new Employee(2L,
                         "John",
                         "Wick",
-                        10,
+                        10L,
                         "dog.wick@gmail.com",
                         "060748481",
                         Date.valueOf(LocalDate.of(2021, 10, 16)),
                         "IT_PROG",
                         15000,
-                        0,
-                        100)
+                        null,
+                        100L)
         );
 
         MvcResult result = mockMvc.perform(get("/employees"))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        assertThat(result.getResponse().getContentAsString()).isEqualTo(objectMapper.writeValueAsString(expectedEmployes));
+        assertThat(result.getResponse().getContentAsString()).isEqualTo(objectMapper.writeValueAsString(expectedEmployees));
 
     }
 
-    @Sql("init.sql")
-    @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    @Order(3)
     @Test
     void addEmployee() throws Exception {
 
         Employee addedEmployee = new Employee(3L,
                 "Kagami",
                 "Taiga",
-                10,
+                10L,
                 "kagami.taiga@gmail.com",
                 "060666777",
                 Date.valueOf(LocalDate.of(2020, 3, 2)),
                 "SOME_JOB",
                 19000,
-                0,
-                60);
+                0D,
+                60L);
 
 
         mockMvc.perform(post("/employees")
                 .contentType("application/json")
                 .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(addedEmployee))
-                ).andExpect(status().isCreated());
+        ).andExpect(status().isCreated());
 
-        String query = "SELECT * FROM EMPLOYEES WHERE EMPLOYEE_ID = ?";
-        Employee newEmployee = jdbcTemplate.queryForObject(query, new CustomerRowMapper(), addedEmployee.getId());
+       Employee newEmployee = entityManager.find(Employee.class, addedEmployee.getId());
 
         assertThat(newEmployee).isEqualTo(addedEmployee);
 
     }
 
-    @Sql("init.sql")
-    @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    @Order(2)
     @Test
-    void getEmployee() throws Exception {
-        Employee expectedEmployee = new Employee(0L,
-                        "Alexey",
-                        "Neikulov",
-                        10,
-                        "alex.neikulov@gmail.com",
-                        "060748612",
-                        Date.valueOf(LocalDate.of(2021, 10, 17)),
-                        "IT_PROG",
-                        17000,
-                        0,
-                        100);
+    void getEmployeeById() throws Exception {
+        Employee expectedEmployee = new Employee(1L,
+                "Alexey",
+                "Neikulov",
+                10L,
+                "alex.neikulov@gmail.com",
+                "060748612",
+                Date.valueOf(LocalDate.of(2021, 10, 17)),
+                "IT_PROG",
+                17000,
+                0D,
+                100L);
 
 
-
-        MvcResult result = mockMvc.perform(get("/employees/0"))
+        MvcResult result = mockMvc.perform(get("/employees/1"))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -152,75 +192,41 @@ class EmployeesControllerIntegrationTest {
         assertThat(expectedEmployee.equals(resultEmployee)).isTrue();
     }
 
-
-    @Sql("init.sql")
-    @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    @Order(5)
     @Test
     void deleteEmployee() throws Exception {
-        mockMvc.perform(delete("/employees/1"))
+        mockMvc.perform(delete("/employees/2"))
                 .andExpect(status().isOk());
-        String query = "SELECT COUNT(EMPLOYEE_ID) FROM EMPLOYEES WHERE EMPLOYEE_ID = 1";
 
-        try(Connection connection = dataSource.getConnection()) {
-            Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery(query);
-            resultSet.next();
-            int count = resultSet.getInt(1);
-            assertThat(count).isEqualTo(0);
-        }
+        Employee deletedEmployee = entityManager.find(Employee.class, 2L);
+
+        assertThat(deletedEmployee).isNull();
     }
 
-    @Sql("init.sql")
-    @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    @Order(4)
     @Test
     void updateEmployee() throws Exception {
 
-        Employee updatedEmployee = new Employee(0L,
+        Employee updatedEmployee = new Employee(1L,
                 "Kagami",
                 "Taiga",
-                10,
-                "kagami.taiga@gmail.com",
-                "060666777",
+                10L,
+                "kagami@gmail.com",
+                "060666999",
                 Date.valueOf(LocalDate.of(2020, 3, 2)),
                 "SOME_JOB",
                 19000,
-                0,
-                60);
+                0D,
+                60L);
 
 
-        mockMvc.perform(put("/employees/0")
+        mockMvc.perform(put("/employees/1")
                 .contentType("application/json")
                 .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(updatedEmployee))
-        ).andExpect(status().isOk());
+        ).andExpect(status().isCreated());
 
-        String query = "SELECT * FROM EMPLOYEES WHERE EMPLOYEE_ID = ?";
-        Employee newEmployee = jdbcTemplate.queryForObject(query, new CustomerRowMapper(), updatedEmployee.getId());
+        Employee actualEmployee = entityManager.find(Employee.class, updatedEmployee.getId());
 
-        assertThat(newEmployee.equals(updatedEmployee)).isTrue();
-    }
-}
-
-class CustomerRowMapper implements RowMapper<Employee> {
-
-    @Override
-    public Employee mapRow(ResultSet rs, int rowNum) throws SQLException {
-        if(rs.getString("first_name") != null) {
-            Employee employee = Employee.builder()
-                    .id(rs.getLong("employee_id"))
-                    .firstName(rs.getString("first_name"))
-                    .lastName(rs.getString("last_name"))
-                    .email(rs.getString("email"))
-                    .phoneNumber(rs.getString("phone_number"))
-                    .hireDate(rs.getDate("hire_date"))
-                    .jobId(rs.getString("job_id"))
-                    .salary(rs.getDouble("salary"))
-                    .commissionPct(rs.getDouble("commission_pct"))
-                    .managerId(rs.getLong("manager_id"))
-                    .departmentId(rs.getLong("department_id"))
-                    .build();
-            return employee;
-        }
-
-        return null;
+        assertThat(actualEmployee).isEqualTo(updatedEmployee);
     }
 }

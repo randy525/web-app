@@ -59,9 +59,9 @@ CREATE SEQUENCE departments_seq
     NOCYCLE;
 
 INSERT INTO EMPLOYEES
-VALUES (0, 'Alexey', 'Neikulov', 'alex.neikulov@gmail.com', '060748612', TO_DATE('17-10-2021', 'dd-MM-yyyy'), 'IT_PROG', 17000, 0, 100, 10);
+VALUES (0, 'Alexey', 'Neikulov', 'alex.neikulov@gmail.com', '060748612', TO_DATE('17-10-2021', 'dd-MM-yyyy'), 'IT_PROG', 17000, null, 100, 10);
 INSERT INTO EMPLOYEES
-VALUES (1, 'John', 'Wick', 'dog.wick@gmail.com', '060748481', TO_DATE('16-10-2021', 'dd-MM-yyyy'), 'IT_PROG', 15000, 0, 100, 10);
+VALUES (1, 'John', 'Wick', 'dog.wick@gmail.com', '060748481', TO_DATE('16-10-2021', 'dd-MM-yyyy'), 'IT_PROG', 15000, null, 100, 10);
 
 INSERT INTO LOCATIONS VALUES (10, 'Seattle');
 INSERT INTO LOCATIONS VALUES (15, 'London');

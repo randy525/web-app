@@ -4,6 +4,7 @@ package com.internship.webapp.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 
+import javax.persistence.*;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
@@ -14,24 +15,35 @@ import java.util.Objects;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@JsonIgnoreProperties(value = {"managerId", "locationId"}, allowSetters = true)
+@ToString
+//@JsonIgnoreProperties(value = {"managerId", "locationId"}, allowSetters = true)
+@Entity
+@Table(name = "DEPARTMENTS")
 public class Department {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "departments_seq")
+    @SequenceGenerator(name="departments_seq",
+            sequenceName="DEPARTMENTS_SEQ", allocationSize = 1)
+    @Column(name = "DEPARTMENT_ID")
     private long id;
 
     @NotNull(message = "Department name must not be null")
-    @NotEmpty(message = "Department name must be empty")
-    @NotBlank(message = "Department name must be blank")
+    @NotEmpty(message = "Department name must not be empty")
+    @NotBlank(message = "Department name must not be blank")
+    @Column(name = "DEPARTMENT_NAME")
     private String departmentName;
 
-    private long managerId;
+    @Column(name = "MANAGER_ID")
+    private Long managerId;
 
-    private long locationId;
+    @Column(name = "LOCATION_ID", insertable = false, updatable = false)
+    private Long locationId;
 
-    @NotNull(message = "Location must not be null")
-    @NotEmpty(message = "Location must not be empty")
-    @NotBlank(message = "Location must not be blank")
-    private String location;
+    @NotNull(message = "Department location must not be null")
+    @ManyToOne
+    @JoinColumn(name = "LOCATION_ID")
+    private Location location;
 
     @Override
     public boolean equals(Object o) {

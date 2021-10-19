@@ -4,11 +4,21 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.internship.webapp.model.Department;
+import com.internship.webapp.model.Employee;
+import org.hibernate.Session;
+import org.hibernate.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
+import javax.persistence.criteria.CriteriaBuilder;
+import javax.persistence.criteria.CriteriaQuery;
+import javax.persistence.criteria.CriteriaUpdate;
+import javax.persistence.criteria.Root;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -17,131 +27,84 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+@Transactional
 @Repository
 public class DepartmentsRepository implements GenericRepository<Department> {
 
-    private final DataSource dataSource;
     private final ObjectWriter objectWriter;
 
-    public DepartmentsRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+    private final EntityManager entityManager;
+
+    public DepartmentsRepository(DataSource dataSource, EntityManager entityManager) {
+        this.entityManager = entityManager;
         objectWriter = new ObjectMapper().writer().withDefaultPrettyPrinter();
     }
 
     @Override
     public List<Department> findAll() {
-        try (Connection connection = DataSourceUtils.getConnection(dataSource)) {
-            List<Department> departmentList = new ArrayList<>();
-            String query = "SELECT DEPARTMENT_ID, DEPARTMENT_NAME, MANAGER_ID, DEPARTMENTS.LOCATION_ID, CITY AS LOCATION " +
-                    "FROM DEPARTMENTS INNER JOIN LOCATIONS ON DEPARTMENTS.LOCATION_ID = LOCATIONS.LOCATION_ID";
-            ResultSet departmentsSet = connection.createStatement().executeQuery(query);
-            while (departmentsSet.next()) {
-                departmentList.add(Department.builder()
-                        .id(departmentsSet.getLong("DEPARTMENT_ID"))
-                        .departmentName(departmentsSet.getString("DEPARTMENT_NAME"))
-                        .managerId(departmentsSet.getLong("MANAGER_ID"))
-                        .locationId(departmentsSet.getLong("LOCATION_ID"))
-                        .location(departmentsSet.getString("LOCATION"))
-                        .build());
-            }
-            return departmentList;
-        } catch (SQLException exception) {
-            System.out.println(exception.getMessage());
-            return null;
-        }
+        Session session = entityManager.unwrap(Session.class);
+        final Query<Department> query = session.createQuery("FROM Department");
+        final List<Department> resultList = query.getResultList();
+        session.close();
+        return resultList;
     }
 
     @Override
     public ResponseEntity<String> save(Department department) throws JsonProcessingException {
-        String query = "SELECT LOCATION_ID FROM LOCATIONS WHERE CITY = ?";
-        long locationId;
-
-        try (Connection connection = DataSourceUtils.getConnection(dataSource)) {
-
-            try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
-                preparedStatement.setString(1, department.getLocation());
-                ResultSet resultSet = preparedStatement.executeQuery();
-                if (resultSet.next()) {
-                    locationId = resultSet.getLong(1);
-                } else {
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                            .body("Not found the " + department.getLocation() + " location in database");
-                }
-            }
-
-            query = "INSERT INTO DEPARTMENTS VALUES (DEPARTMENTS_SEQ.nextval, ?, ?, ?)";
-
-            try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
-                preparedStatement.setString(1, department.getDepartmentName());
-                preparedStatement.setLong(2, department.getManagerId());
-                preparedStatement.setLong(3, locationId);
-                preparedStatement.execute();
-                return ResponseEntity.status(HttpStatus.CREATED).body(objectWriter.writeValueAsString(department));
-            }
-        } catch (SQLException exception) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(exception.getMessage());
-        }
+        Session session = entityManager.unwrap(Session.class);
+        session.save(department);
+        session.close();
+        return ResponseEntity.status(HttpStatus.CREATED).body(objectWriter.writeValueAsString(department));
     }
 
     @Override
     public Department findById(long id) {
-        return findAll().stream()
-                .filter(department -> department.getId() == id)
-                .findFirst()
-                .orElse(null);
+        return entityManager.find(Department.class, id);
     }
 
     @Override
     public String deleteById(long id) {
-        String query = "DELETE FROM DEPARTMENTS WHERE DEPARTMENT_ID = ?";
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement preparedStatement = connection.prepareStatement(query)) {
-            preparedStatement.setLong(1, id);
-            preparedStatement.execute();
-            return "Deleted!";
-        } catch (SQLException exception) {
-            System.out.println(exception.getMessage());
-            return "Error!";
-        }
+        Session session = entityManager.unwrap(Session.class);
+        session.delete(entityManager.find(Department.class, id));
+        session.close();
+        return "Department with " + id + " deleted successfully!";
     }
 
     @Override
     public ResponseEntity<String> updateById(long id, Department department) throws JsonProcessingException {
-        String query = "SELECT LOCATION_ID FROM LOCATIONS WHERE CITY = ?";
-        long locationId;
+        try {
 
-        try (Connection connection = dataSource.getConnection()) {
-
-            try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
-                preparedStatement.setString(1, department.getLocation());
-                ResultSet resultSet = preparedStatement.executeQuery();
-                if (resultSet.next()) {
-                    locationId = resultSet.getLong(1);
-                } else {
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                            .body("Not found the " + department.getLocation() + " location in database");
-                }
-            }
-
-            query = "UPDATE DEPARTMENTS SET " +
-                    "DEPARTMENT_NAME = ?," +
-                    "MANAGER_ID = ?," +
-                    "LOCATION_ID = ? " +
-                    "WHERE DEPARTMENT_ID = ?";
             department.setId(id);
 
-            try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
-                preparedStatement.setString(1, department.getDepartmentName());
-                preparedStatement.setLong(2, department.getManagerId());
-                preparedStatement.setLong(3, locationId);
-                preparedStatement.setLong(4, id);
-                preparedStatement.executeUpdate();
+            Department departmentNew = entityManager.find(Department.class, id);
 
-                return ResponseEntity.status(HttpStatus.OK).body(objectWriter.writeValueAsString(department));
-            }
+            departmentNew.setDepartmentName(department.getDepartmentName());
+            departmentNew.setLocationId(department.getLocationId());
+            departmentNew.setManagerId(department.getManagerId());
+            departmentNew.setLocation(department.getLocation());
 
-        } catch (SQLException exception) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(exception.getMessage());
+            Session session = entityManager.unwrap(Session.class);
+            session.saveOrUpdate(departmentNew);
+            session.close();
+
+            /*CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            CriteriaUpdate<Department> update = cb.createCriteriaUpdate(Department.class);
+
+            Root<Department> departmentRoot = update.from(Department.class);
+
+            update.set("departmentName", department.getDepartmentName());
+            update.set("locationId", department.getLocationId());
+            update.set("managerId", department.getManagerId());
+            update.set("location", department.getLocation());
+
+            update.where(cb.equal(departmentRoot.get("id"), id));
+            entityManager.createQuery(update).executeUpdate();*/
+
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(objectWriter.writeValueAsString(departmentNew));
+        } catch (Exception exception) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(exception.getMessage());
         }
     }
 }

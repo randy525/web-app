@@ -5,19 +5,27 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.internship.webapp.model.Department;
 import com.internship.webapp.model.Employee;
+import com.internship.webapp.model.Location;
 import lombok.RequiredArgsConstructor;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.test.annotation.Commit;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -34,6 +42,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DepartmentsControllerIntegrationTest {
 
     @Autowired
@@ -48,54 +58,97 @@ class DepartmentsControllerIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private SessionFactory sessionFactory;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    private Location location1;
+    private Location location2;
+    private Department department1;
+    private  Department department2;
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    @Commit
+    void initLocations() {
+        location1 = new Location(1800L, "147 Spadina Ave", "M5V 2L7", "Toronto", "Ontario", "CA");
+        location2 = new Location(1700L, "2004 Charade Rd", "98199", "Seattle", "Washington", "US");
+
+        Session session = sessionFactory.openSession();
+
+        session.getTransaction().begin();
+        session.save(location1);
+        session.save(location2);
+        session.flush();
+        session.getTransaction().commit();
+        session.close();
+    }
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    @Commit
+    void initDepartments() throws InterruptedException {
+        department1 = new Department(1L, "Administration", 200L, 1700L, location2);
+        department2 = new Department(2L, "Marketing", 201L, 1800L, location1);
+
+        Session session = sessionFactory.openSession();
+
+        session.getTransaction().begin();
+        session.save(department1);
+        session.save(department2);
+        session.flush();
+        session.getTransaction().commit();
+        session.close();
+    }
+
+    @BeforeAll
+    void insertData() throws InterruptedException {
+        initLocations();
+        initDepartments();
+    }
+
     @BeforeEach
     void init() {
         objectMapper.disable(MapperFeature.USE_ANNOTATIONS);
     }
 
-    @Sql("init.sql")
-    @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+
+    @Order(1)
     @Test
-    void getDepartment() throws Exception {
-        List<Department> expectedDepartments = List.of(
-                new Department(10L, "IT", 0, 10, "Seattle"),
-                new Department(20L, "Security", 1, 15, "London")
-        );
+    void getDepartments() throws Exception {
+
+        List<Department> expectedDepartments = List.of(department1, department2);
 
         MvcResult result = mockMvc.perform(get("/departments"))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        assertThat(result.getResponse().getContentAsString()).isEqualTo(objectMapper.writeValueAsString(expectedDepartments));
-
+        assertThat(result.getResponse().getContentAsString())
+                .isEqualTo(objectMapper.writeValueAsString(expectedDepartments));
     }
 
-    @Sql("init.sql")
-    @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    @Order(3)
     @Test
     void addDepartment() throws Exception {
-        Department addedDepartment = new Department(30L, "LOL", 0, 15, "London");
-
+        Department newDepartment = new Department(3L, "Administration", 205L, 1700L, location2);
 
         mockMvc.perform(post("/departments")
-                .contentType("application/json")
-                .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(addedDepartment))
-        ).andExpect(status().isCreated());
+                        .contentType("application/json")
+                        .content(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(newDepartment)))
+                        .andExpect(status().isCreated());
 
-        String query = "SELECT DEPARTMENT_ID, DEPARTMENT_NAME, MANAGER_ID, DEPARTMENTS.LOCATION_ID, CITY AS LOCATION " +
-                "FROM DEPARTMENTS INNER JOIN LOCATIONS USING (LOCATION_ID) WHERE DEPARTMENT_ID = ?";
-        Department newDepartment = jdbcTemplate.queryForObject(query, new DepartmentRowMapper(), addedDepartment.getId());
+        Department actualDepartment = entityManager.find(Department.class, 3L);
 
-        assertThat(newDepartment.equals(addedDepartment)).isTrue();
+        assertThat(objectMapper.writeValueAsString(actualDepartment))
+                .isEqualTo(objectMapper.writeValueAsString(newDepartment));
     }
 
-    @Sql("init.sql")
-    @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+
+    @Order(2)
     @Test
     void getDepartmentById() throws Exception {
-        Department expectedDepartment = new Department(10L, "IT", 0, 10L, "Seattle");
 
-        MvcResult result = mockMvc.perform(get("/departments/10"))
+        MvcResult result = mockMvc.perform(get("/departments/1"))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -103,64 +156,35 @@ class DepartmentsControllerIntegrationTest {
                 readerFor(Department.class)
                 .readValue(result.getResponse().getContentAsString());
 
-        assertThat(expectedDepartment.getDepartmentName().equals(resultDepartment.getDepartmentName())).isTrue();
-        assertThat(expectedDepartment.getId() == resultDepartment.getId()).isTrue();
-        assertThat(expectedDepartment.getLocation().equals(resultDepartment.getLocation())).isTrue();
+        assertThat(objectMapper.writeValueAsString(resultDepartment))
+                .isEqualTo(objectMapper.writeValueAsString(department1));
     }
 
-    @Sql("init.sql")
-    @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    @Order(5)
     @Test
     void deleteDepartment() throws Exception {
-
-        mockMvc.perform(delete("/departments/20"))
+        mockMvc.perform(delete("/departments/2"))
                 .andExpect(status().isOk());
-        String query = "SELECT COUNT(*) FROM DEPARTMENTS WHERE DEPARTMENT_ID = 20";
 
-        try(Connection connection = dataSource.getConnection()) {
-            Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery(query);
-            resultSet.next();
-            int count = resultSet.getInt(1);
-            assertThat(count).isEqualTo(0);
-        }
+        Department deletedDepartment = entityManager.find(Department.class, 2L);
+
+        assertThat(deletedDepartment).isNull();
     }
 
-    @Sql("init.sql")
-    @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+    @Order(4)
     @Test
     void updateDepartment() throws Exception {
+        Department newDepartment = new Department(1L, "Finance", 250L, 1700L, location2);
 
-        Department expectedDepartment = new Department(10L, "IT", 0, 10L, "Seattle");
+        mockMvc.perform(put("/departments/1")
+                        .contentType("application/json")
+                        .content(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(newDepartment)))
+                .andExpect(status().isCreated());
 
-        mockMvc.perform(put("/departments/10")
-                .contentType("application/json")
-                .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(expectedDepartment))
-        ).andExpect(status().isOk());
+        Department actualDepartment = entityManager.find(Department.class, 1L);
 
-        String query = "SELECT DEPARTMENT_ID, DEPARTMENT_NAME, MANAGER_ID, DEPARTMENTS.LOCATION_ID, CITY AS LOCATION " +
-                "FROM DEPARTMENTS INNER JOIN LOCATIONS ON DEPARTMENTS.LOCATION_ID = LOCATIONS.LOCATION_ID WHERE DEPARTMENT_ID = ?";
-        Department newDepartment = jdbcTemplate.queryForObject(query, new DepartmentRowMapper(), expectedDepartment.getId());
+        assertThat(objectMapper.writeValueAsString(actualDepartment))
+                .isEqualTo(objectMapper.writeValueAsString(newDepartment));
 
-        assertThat(newDepartment.equals(expectedDepartment)).isTrue();
-
-    }
-}
-
-class DepartmentRowMapper implements RowMapper<Department> {
-
-    @Override
-    public Department mapRow(ResultSet rs, int rowNum) throws SQLException {
-        if(rs.getString("DEPARTMENT_NAME") != null) {
-            return Department.builder()
-                    .id(rs.getLong("DEPARTMENT_ID"))
-                    .departmentName(rs.getString("DEPARTMENT_NAME"))
-                    .managerId(rs.getLong("MANAGER_ID"))
-                    .locationId(rs.getLong("LOCATION_ID"))
-                    .location(rs.getString("CITY"))
-                    .build();
-        }
-
-        return null;
     }
 }
