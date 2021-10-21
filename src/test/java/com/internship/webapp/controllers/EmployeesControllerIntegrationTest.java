@@ -58,7 +58,7 @@ class EmployeesControllerIntegrationTest {
     @Sql("init.sql")
     @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
     @Test
-    void getEmployees() throws Exception {
+    void getAllEmployeesFromDatabase() throws Exception {
 
         List<Employee> expectedEmployes = List.of(
                 new Employee(0L,
@@ -96,7 +96,7 @@ class EmployeesControllerIntegrationTest {
     @Sql("init.sql")
     @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
     @Test
-    void addEmployee() throws Exception {
+    void ifAddEmployeeItInsertedInDatabase() throws Exception {
 
         Employee addedEmployee = new Employee(3L,
                 "Kagami",
@@ -116,8 +116,8 @@ class EmployeesControllerIntegrationTest {
                 .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(addedEmployee))
                 ).andExpect(status().isCreated());
 
-        String query = "SELECT * FROM EMPLOYEES WHERE EMPLOYEE_ID = ?";
-        Employee newEmployee = jdbcTemplate.queryForObject(query, new CustomerRowMapper(), addedEmployee.getId());
+        String GET_EMPLOYEE_BY_ID = "SELECT * FROM EMPLOYEES WHERE EMPLOYEE_ID = ?";
+        Employee newEmployee = jdbcTemplate.queryForObject(GET_EMPLOYEE_BY_ID, new CustomerRowMapper(), addedEmployee.getId());
 
         assertThat(newEmployee).isEqualTo(addedEmployee);
 
@@ -126,7 +126,7 @@ class EmployeesControllerIntegrationTest {
     @Sql("init.sql")
     @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
     @Test
-    void getEmployee() throws Exception {
+    void getEmployeeByIdFromDatabase() throws Exception {
         Employee expectedEmployee = new Employee(0L,
                         "Alexey",
                         "Neikulov",
@@ -156,14 +156,14 @@ class EmployeesControllerIntegrationTest {
     @Sql("init.sql")
     @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
     @Test
-    void deleteEmployee() throws Exception {
+    void deleteEmployeeFromDatabase() throws Exception {
         mockMvc.perform(delete("/employees/1"))
                 .andExpect(status().isOk());
-        String query = "SELECT COUNT(EMPLOYEE_ID) FROM EMPLOYEES WHERE EMPLOYEE_ID = 1";
+        String COUNT_BY_ID = "SELECT COUNT(EMPLOYEE_ID) FROM EMPLOYEES WHERE EMPLOYEE_ID = 1";
 
         try(Connection connection = dataSource.getConnection()) {
             Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery(query);
+            ResultSet resultSet = statement.executeQuery(COUNT_BY_ID);
             resultSet.next();
             int count = resultSet.getInt(1);
             assertThat(count).isEqualTo(0);
@@ -173,7 +173,7 @@ class EmployeesControllerIntegrationTest {
     @Sql("init.sql")
     @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
     @Test
-    void updateEmployee() throws Exception {
+    void ifUpdateEmployeeItUpdatedInDatabase() throws Exception {
 
         Employee updatedEmployee = new Employee(0L,
                 "Kagami",
@@ -193,8 +193,8 @@ class EmployeesControllerIntegrationTest {
                 .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(updatedEmployee))
         ).andExpect(status().isOk());
 
-        String query = "SELECT * FROM EMPLOYEES WHERE EMPLOYEE_ID = ?";
-        Employee newEmployee = jdbcTemplate.queryForObject(query, new CustomerRowMapper(), updatedEmployee.getId());
+        String GET_EMPLOYEE_BY_ID = "SELECT * FROM EMPLOYEES WHERE EMPLOYEE_ID = ?";
+        Employee newEmployee = jdbcTemplate.queryForObject(GET_EMPLOYEE_BY_ID, new CustomerRowMapper(), updatedEmployee.getId());
 
         assertThat(newEmployee.equals(updatedEmployee)).isTrue();
     }

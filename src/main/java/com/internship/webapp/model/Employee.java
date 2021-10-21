@@ -28,7 +28,6 @@ public class Employee {
     @NotEmpty(message = "Last name must not be empty")
     @NotBlank(message = "Last name must not be blank")
     private String lastName;
-
     private long departmentId;
 
     @NotNull(message = "Email must not be null")
@@ -43,13 +42,22 @@ public class Employee {
     @NotBlank(message = "Phone number must not be blank")
     @UniqueField(message = "The phone number must be unique")
     private String phoneNumber;
-
     private Date hireDate;
+    private String jobId;
+
+    @DecimalMin(value = "1.0", message = "The salary must be greater than or equal to 1")
+    private double salary;
+    private double commissionPct;
+    private long managerId;
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         Employee employee = (Employee) o;
         return id == employee.id &&
                 firstName.equals(employee.firstName) &&
@@ -62,14 +70,5 @@ public class Employee {
     public int hashCode() {
         return Objects.hash(id, firstName, lastName, email, phoneNumber);
     }
-
-    private String jobId;
-
-    @DecimalMin(value = "1.0", message = "The salary must be greater than or equal to 1")
-    private double salary;
-
-    private double commissionPct;
-
-    private long managerId;
 
 }

@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.internship.webapp.model.Department;
 import com.internship.webapp.repositories.GenericRepository;
+import com.internship.webapp.repositories.LocationRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,57 +14,36 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+@RequiredArgsConstructor
 @Service
 public class DepartmentsService {
 
     private final GenericRepository<Department> repository;
 
-    private final ObjectWriter objectWriter;
+    private final LocationRepository locationRepository;
 
-    @Autowired
-    public DepartmentsService(GenericRepository<Department> repository) {
-        this.repository = repository;
-        objectWriter = new ObjectMapper().writer().withDefaultPrettyPrinter();
-    }
 
     public List<Department> findAll() {
         return repository.findAll();
     }
 
-    public ResponseEntity<String> save(Department department) {
-        try {
-            return repository.save(department);
+    public Department save(Department department) {
+        Long locationId = locationRepository.getIdByCity(department.getLocation());
+        if (locationId == null) {
+            return null;
         }
-        catch (JsonProcessingException exception) {
-            System.out.println(exception.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error in data processing!");
-        }
+        return repository.save(department);
     }
 
-    public ResponseEntity<String> findById(long id){
-        Department department = repository.findById(id);
-        if(department == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Employee with id " + id + " not found!");
-        } else {
-            try {
-                return ResponseEntity.status(HttpStatus.OK).body(objectWriter.writeValueAsString(department));
-            } catch (JsonProcessingException exception) {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error in data processing!");
-            }
-        }
+    public Department findById(long id){
+        return repository.findById(id);
     }
 
-    public String deleteById(long id) {
+    public Long deleteById(long id) {
         return repository.deleteById(id);
     }
 
-    public ResponseEntity<String> updateById(long id, Department department) {
-        try {
-            return repository.updateById(id, department);
-        }
-        catch (JsonProcessingException exception) {
-            System.out.println(exception.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error in data processing!");
-        }
+    public Department updateById(long id, Department department) {
+        return repository.updateById(id, department);
     }
 }

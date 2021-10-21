@@ -3,6 +3,7 @@ package com.internship.webapp.repositories;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.internship.webapp.model.Department;
 import com.internship.webapp.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,11 +28,11 @@ public class EmployeeRepository implements GenericRepository<Employee> {
 
     @Override
     public List<Employee> findAll() {
-        try(Connection connection = DataSourceUtils.getConnection(dataSource)) {
+        try (Connection connection = DataSourceUtils.getConnection(dataSource)) {
             List<Employee> employeeList = new ArrayList<>();
             String query = "SELECT * FROM employees";
             ResultSet employees = connection.createStatement().executeQuery(query);
-            while(employees.next()) {
+            while (employees.next()) {
                 employeeList.add(Employee.builder()
                         .id(employees.getLong("employee_id"))
                         .firstName(employees.getString("first_name"))
@@ -54,12 +55,12 @@ public class EmployeeRepository implements GenericRepository<Employee> {
     }
 
     @Override
-    public ResponseEntity<String> save(Employee employee) throws JsonProcessingException{
+    public Employee save(Employee employee) {
         String query = "INSERT INTO EMPLOYEES VALUES (employees_seq.nextval, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
 
-        try(Connection connection = DataSourceUtils.getConnection(dataSource);
-            PreparedStatement preparedStatement = connection.prepareStatement(query);) {
+        try (Connection connection = DataSourceUtils.getConnection(dataSource);
+             PreparedStatement preparedStatement = connection.prepareStatement(query)) {
 
             preparedStatement.setString(1, employee.getFirstName());
             preparedStatement.setString(2, employee.getLastName());
@@ -73,37 +74,65 @@ public class EmployeeRepository implements GenericRepository<Employee> {
             preparedStatement.setLong(10, employee.getDepartmentId());
             preparedStatement.execute();
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(ow.writeValueAsString(employee));
+            return employee;
         } catch (SQLException exception) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(exception.getMessage());
+            System.out.println(exception.getMessage());
+            return null;
         }
     }
 
     @Override
     public Employee findById(long id) {
-        return findAll().stream()
-                .filter(employee -> employee.getId() == id)
-                .findFirst()
-                .orElse(null);
-    }
 
-    @Override
-    public String deleteById(long id) {
-        String query = "DELETE FROM EMPLOYEES WHERE employee_id = ?";
-        try(Connection connection = DataSourceUtils.getConnection(dataSource);
-            PreparedStatement preparedStatement = connection.prepareStatement(query);) {
+        String queryForEmployee = "SELECT * FROM EMPLOYEES WHERE EMPLOYEE_ID = ?";
+
+        try (Connection connection = DataSourceUtils.getConnection(dataSource);
+             PreparedStatement preparedStatement = connection.prepareStatement(queryForEmployee)) {
 
             preparedStatement.setLong(1, id);
-            preparedStatement.execute();
-            return "Deleted!";
+            ResultSet employees = preparedStatement.executeQuery();
+
+            if (employees.next()) {
+                return Employee.builder()
+                        .id(employees.getLong("employee_id"))
+                        .firstName(employees.getString("first_name"))
+                        .lastName(employees.getString("last_name"))
+                        .email(employees.getString("email"))
+                        .phoneNumber(employees.getString("phone_number"))
+                        .hireDate(employees.getDate("hire_date"))
+                        .jobId(employees.getString("job_id"))
+                        .salary(employees.getDouble("salary"))
+                        .commissionPct(employees.getDouble("commission_pct"))
+                        .managerId(employees.getLong("manager_id"))
+                        .departmentId(employees.getLong("department_id"))
+                        .build();
+            } else {
+                return null;
+            }
+
         } catch (SQLException exception) {
             System.out.println(exception.getMessage());
-            return "Error!";
+            return null;
         }
     }
 
     @Override
-    public ResponseEntity<String> updateById(long id, Employee employee) throws JsonProcessingException{
+    public Long deleteById(long id) {
+        String query = "DELETE FROM EMPLOYEES WHERE employee_id = ?";
+        try (Connection connection = DataSourceUtils.getConnection(dataSource);
+             PreparedStatement preparedStatement = connection.prepareStatement(query);) {
+
+            preparedStatement.setLong(1, id);
+            preparedStatement.execute();
+            return id;
+        } catch (SQLException exception) {
+            System.out.println(exception.getMessage());
+            return -1L;
+        }
+    }
+
+    @Override
+    public Employee updateById(long id, Employee employee) {
         String query = "UPDATE EMPLOYEES SET " +
                 "first_name = ?," +
                 "last_name = ?," +
@@ -117,8 +146,8 @@ public class EmployeeRepository implements GenericRepository<Employee> {
                 "department_id = ?" +
                 "WHERE employee_id = ?";
         ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-        try(Connection connection = dataSource.getConnection();
-            PreparedStatement preparedStatement = connection.prepareStatement(query);) {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(query);) {
 
             employee.setId(id);
 
@@ -135,9 +164,10 @@ public class EmployeeRepository implements GenericRepository<Employee> {
             preparedStatement.setLong(11, id);
             preparedStatement.execute();
 
-            return ResponseEntity.status(HttpStatus.OK).body(ow.writeValueAsString(employee));
+            return employee;
         } catch (SQLException exception) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(exception.getMessage());
+            System.out.println(exception.getMessage());
+            return null;
         }
     }
 }

@@ -56,7 +56,7 @@ class DepartmentsControllerIntegrationTest {
     @Sql("init.sql")
     @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
     @Test
-    void getDepartment() throws Exception {
+    void getDepartmentsFromDatabase() throws Exception {
         List<Department> expectedDepartments = List.of(
                 new Department(10L, "IT", 0, 10, "Seattle"),
                 new Department(20L, "Security", 1, 15, "London")
@@ -73,7 +73,7 @@ class DepartmentsControllerIntegrationTest {
     @Sql("init.sql")
     @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
     @Test
-    void addDepartment() throws Exception {
+    void whenAddDepartmentItInsertInDB() throws Exception {
         Department addedDepartment = new Department(30L, "LOL", 0, 15, "London");
 
 
@@ -82,9 +82,9 @@ class DepartmentsControllerIntegrationTest {
                 .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(addedDepartment))
         ).andExpect(status().isCreated());
 
-        String query = "SELECT DEPARTMENT_ID, DEPARTMENT_NAME, MANAGER_ID, DEPARTMENTS.LOCATION_ID, CITY AS LOCATION " +
+        String GET_DEPARTMENT_BY_ID = "SELECT DEPARTMENT_ID, DEPARTMENT_NAME, MANAGER_ID, DEPARTMENTS.LOCATION_ID, CITY AS LOCATION " +
                 "FROM DEPARTMENTS INNER JOIN LOCATIONS USING (LOCATION_ID) WHERE DEPARTMENT_ID = ?";
-        Department newDepartment = jdbcTemplate.queryForObject(query, new DepartmentRowMapper(), addedDepartment.getId());
+        Department newDepartment = jdbcTemplate.queryForObject(GET_DEPARTMENT_BY_ID, new DepartmentRowMapper(), addedDepartment.getId());
 
         assertThat(newDepartment.equals(addedDepartment)).isTrue();
     }
@@ -111,15 +111,15 @@ class DepartmentsControllerIntegrationTest {
     @Sql("init.sql")
     @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
     @Test
-    void deleteDepartment() throws Exception {
+    void deleteDepartmentFromDatabase() throws Exception {
 
         mockMvc.perform(delete("/departments/20"))
                 .andExpect(status().isOk());
-        String query = "SELECT COUNT(*) FROM DEPARTMENTS WHERE DEPARTMENT_ID = 20";
+        String countDepartmentsQuery = "SELECT COUNT(*) FROM DEPARTMENTS WHERE DEPARTMENT_ID = 20";
 
-        try(Connection connection = dataSource.getConnection()) {
+        try (Connection connection = dataSource.getConnection()) {
             Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery(query);
+            ResultSet resultSet = statement.executeQuery(countDepartmentsQuery);
             resultSet.next();
             int count = resultSet.getInt(1);
             assertThat(count).isEqualTo(0);
@@ -129,7 +129,7 @@ class DepartmentsControllerIntegrationTest {
     @Sql("init.sql")
     @Sql(scripts = "clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
     @Test
-    void updateDepartment() throws Exception {
+    void updateDepartmentInDatabase() throws Exception {
 
         Department expectedDepartment = new Department(10L, "IT", 0, 10L, "Seattle");
 
@@ -137,10 +137,9 @@ class DepartmentsControllerIntegrationTest {
                 .contentType("application/json")
                 .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(expectedDepartment))
         ).andExpect(status().isOk());
-
-        String query = "SELECT DEPARTMENT_ID, DEPARTMENT_NAME, MANAGER_ID, DEPARTMENTS.LOCATION_ID, CITY AS LOCATION " +
+        String SELECT_DEPARTMENT_FIELDS = "SELECT DEPARTMENT_ID, DEPARTMENT_NAME, MANAGER_ID, DEPARTMENTS.LOCATION_ID, CITY AS LOCATION " +
                 "FROM DEPARTMENTS INNER JOIN LOCATIONS ON DEPARTMENTS.LOCATION_ID = LOCATIONS.LOCATION_ID WHERE DEPARTMENT_ID = ?";
-        Department newDepartment = jdbcTemplate.queryForObject(query, new DepartmentRowMapper(), expectedDepartment.getId());
+        Department newDepartment = jdbcTemplate.queryForObject(SELECT_DEPARTMENT_FIELDS, new DepartmentRowMapper(), expectedDepartment.getId());
 
         assertThat(newDepartment.equals(expectedDepartment)).isTrue();
 
@@ -151,7 +150,7 @@ class DepartmentRowMapper implements RowMapper<Department> {
 
     @Override
     public Department mapRow(ResultSet rs, int rowNum) throws SQLException {
-        if(rs.getString("DEPARTMENT_NAME") != null) {
+        if (rs.getString("DEPARTMENT_NAME") != null) {
             return Department.builder()
                     .id(rs.getLong("DEPARTMENT_ID"))
                     .departmentName(rs.getString("DEPARTMENT_NAME"))
@@ -159,8 +158,9 @@ class DepartmentRowMapper implements RowMapper<Department> {
                     .locationId(rs.getLong("LOCATION_ID"))
                     .location(rs.getString("CITY"))
                     .build();
+        } else {
+            return null;
         }
 
-        return null;
     }
 }

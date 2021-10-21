@@ -20,12 +20,10 @@ public class Department {
     private long id;
 
     @NotNull(message = "Department name must not be null")
-    @NotEmpty(message = "Department name must be empty")
-    @NotBlank(message = "Department name must be blank")
+    @NotEmpty(message = "Department name must not be empty")
+    @NotBlank(message = "Department name must not be blank")
     private String departmentName;
-
     private long managerId;
-
     private long locationId;
 
     @NotNull(message = "Location must not be null")
@@ -35,8 +33,14 @@ public class Department {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
         Department that = (Department) o;
         return id == that.id &&
                 locationId == that.locationId &&

@@ -9,11 +9,11 @@ import java.util.Optional;
 public interface GenericRepository<T>{
     List<T> findAll();
 
-    ResponseEntity<String> save(T obj) throws JsonProcessingException;
+    T save(T obj);
 
     T findById(long id);
 
-    String deleteById(long id);
+    Long deleteById(long id);
 
-    ResponseEntity<String> updateById(long id, T obj) throws JsonProcessingException;
+    T updateById(long id, T obj);
 }
