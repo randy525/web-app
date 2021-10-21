@@ -32,6 +32,7 @@ public class DepartmentsService {
         if (locationId == null) {
             return null;
         }
+        department.setLocationId(locationId);
         return repository.save(department);
     }
 
