@@ -16,7 +16,7 @@ import java.util.Objects;
 @AllArgsConstructor
 @Builder
 @ToString
-//@JsonIgnoreProperties(value = {"managerId", "locationId"}, allowSetters = true)
+@JsonIgnoreProperties(value = {"managerId", "locationId"}, allowSetters = true)
 @Entity
 @Table(name = "DEPARTMENTS")
 public class Department {

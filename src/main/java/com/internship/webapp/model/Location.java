@@ -17,7 +17,7 @@ import javax.persistence.Table;
 @Table(name = "LOCATIONS")
 @AllArgsConstructor
 @NoArgsConstructor
-//@JsonIgnoreProperties(value = {"locationId", "streetAddress", "postalCode", "stateProvince", "countryId"})
+@JsonIgnoreProperties(value = {"locationId", "streetAddress", "postalCode", "stateProvince", "countryId"})
 public class Location {
 
     @Id
