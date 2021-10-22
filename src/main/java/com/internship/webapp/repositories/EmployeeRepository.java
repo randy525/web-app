@@ -39,8 +39,8 @@ public class EmployeeRepository implements GenericRepository<Employee> {
             Session session = sessionFactory.openSession();
             session.getTransaction().begin();
             session.save(employee);
-            session.flush();
             session.getTransaction().commit();
+            session.close();
             return employee;
         } catch (Exception exception) {
             System.out.println(exception.getMessage());

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.internship.webapp.model.Employee;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.ReplicationMode;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.*;
@@ -27,8 +28,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class EmployeesControllerIntegrationTest {
 
     @Autowired
@@ -44,13 +43,8 @@ class EmployeesControllerIntegrationTest {
     private EntityManager entityManager;
 
     @BeforeEach
-    void init() {
-        objectMapper.disable(MapperFeature.USE_ANNOTATIONS);
-    }
-
-    @BeforeAll
     void initTable() {
-
+        objectMapper.disable(MapperFeature.USE_ANNOTATIONS);
         Employee employee1 = new Employee(1L,
                 "Alexey",
                 "Neikulov",
@@ -76,14 +70,13 @@ class EmployeesControllerIntegrationTest {
 
         Session session = sessionFactory.openSession();
         session.getTransaction().begin();
-        session.save(employee1);
-        session.save(employee2);
-        session.flush();
+        session.replicate(employee1, ReplicationMode.IGNORE);
+        session.replicate(employee2, ReplicationMode.IGNORE);
         session.getTransaction().commit();
+        session.close();
     }
 
 
-    @Order(1)
     @Test
     void getEmployees() throws Exception {
 
@@ -120,11 +113,18 @@ class EmployeesControllerIntegrationTest {
 
     }
 
-    @Order(3)
     @Test
     void addEmployee() throws Exception {
 
-        Employee addedEmployee = new Employee(3L,
+        Session session = sessionFactory.openSession();
+
+        session.getTransaction().begin();
+        session.delete(session.get(Employee.class, 1L));
+        session.delete(session.get(Employee.class, 2L));
+        session.getTransaction().commit();
+        session.close();
+
+        Employee addedEmployee = new Employee(1L,
                 "Kagami",
                 "Taiga",
                 10L,
@@ -148,7 +148,6 @@ class EmployeesControllerIntegrationTest {
 
     }
 
-    @Order(2)
     @Test
     void getEmployeeById() throws Exception {
         Employee expectedEmployee = new Employee(1L,
@@ -175,7 +174,6 @@ class EmployeesControllerIntegrationTest {
         assertThat(expectedEmployee.equals(resultEmployee)).isTrue();
     }
 
-    @Order(5)
     @Test
     void deleteEmployee() throws Exception {
         mockMvc.perform(delete("/employees/2"))
@@ -186,7 +184,6 @@ class EmployeesControllerIntegrationTest {
         assertThat(deletedEmployee).isNull();
     }
 
-    @Order(4)
     @Test
     void updateEmployee() throws Exception {
 

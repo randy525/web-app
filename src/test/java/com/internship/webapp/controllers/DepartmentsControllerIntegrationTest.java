@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.internship.webapp.model.Department;
 import com.internship.webapp.model.Location;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.ReplicationMode;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.*;
@@ -29,8 +30,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DepartmentsControllerIntegrationTest {
 
     @Autowired
@@ -45,55 +44,43 @@ class DepartmentsControllerIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
-    private Location location1;
-    private Location location2;
-    private Department department1;
-    private Department department2;
+    private final Location location1 = new Location(1800L, "147 Spadina Ave", "M5V 2L7", "Toronto", "Ontario", "CA");;
+    private final Location location2 = new Location(1700L, "2004 Charade Rd", "98199", "Seattle", "Washington", "US");
+
+    private Department department1 = new Department(1L, "Administration", 200L, 1700L, location2);
+    private Department department2 = new Department(2L, "Marketing", 201L, 1800L, location1);
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
     @Commit
-    void initLocations() {
-        location1 = new Location(1800L, "147 Spadina Ave", "M5V 2L7", "Toronto", "Ontario", "CA");
-        location2 = new Location(1700L, "2004 Charade Rd", "98199", "Seattle", "Washington", "US");
-
-        Session session = sessionFactory.openSession();
-        session.getTransaction().begin();
-        session.save(location1);
-        session.save(location2);
-        session.flush();
-        session.getTransaction().commit();
-        session.close();
-    }
-
-    @Transactional(isolation = Isolation.SERIALIZABLE)
-    @Commit
-    void initDepartments() {
-        department1 = new Department(1L, "Administration", 200L, 1700L, location2);
-        department2 = new Department(2L, "Marketing", 201L, 1800L, location1);
-
-        Session session = sessionFactory.openSession();
-
-        session.getTransaction().begin();
-        session.save(department1);
-        session.save(department2);
-        session.flush();
-        session.getTransaction().commit();
-        session.close();
-    }
-
-    @BeforeAll
-    void insertData() {
-        initLocations();
-        initDepartments();
-    }
-
     @BeforeEach
-    void init() {
+    void initDepartments() {
         objectMapper.disable(MapperFeature.USE_ANNOTATIONS);
+
+        Session session = sessionFactory.openSession();
+
+        session.getTransaction().begin();
+        session.replicate(location1, ReplicationMode.IGNORE);
+        session.replicate(location2, ReplicationMode.IGNORE);
+        session.getTransaction().commit();
+
+        session.getTransaction().begin();
+        session.replicate(department1, ReplicationMode.IGNORE);
+        session.replicate(department2, ReplicationMode.IGNORE);
+        session.getTransaction().commit();
+
+        session.close();
+    }
+
+    @AfterEach
+    void close() {
+        Session session = sessionFactory.openSession();
+        session.getTransaction().begin();
+        session.createQuery("delete from Department ").executeUpdate();
+        session.getTransaction().commit();
+        session.close();
     }
 
 
-    @Order(1)
     @Test
     void getDepartments() throws Exception {
 
@@ -107,24 +94,29 @@ class DepartmentsControllerIntegrationTest {
                 .isEqualTo(objectMapper.writeValueAsString(expectedDepartments));
     }
 
-    @Order(3)
     @Test
     void addDepartment() throws Exception {
-        Department newDepartment = new Department(3L, "Administration", 205L, 1700L, location2);
+
+        Session session = sessionFactory.openSession();
+        session.getTransaction().begin();
+        session.createQuery("delete from Department ").executeUpdate();
+        session.getTransaction().commit();
+        session.close();
+
+        Department newDepartment = new Department(1L, "Administration", 205L, 1700L, location2);
 
         mockMvc.perform(post("/departments")
                         .contentType("application/json")
                         .content(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(newDepartment)))
                 .andExpect(status().isCreated());
 
-        Department actualDepartment = entityManager.find(Department.class, 3L);
+        Department actualDepartment = entityManager.find(Department.class, 1L);
 
         assertThat(objectMapper.writeValueAsString(actualDepartment))
                 .isEqualTo(objectMapper.writeValueAsString(newDepartment));
     }
 
 
-    @Order(2)
     @Test
     void getDepartmentById() throws Exception {
 
@@ -140,7 +132,6 @@ class DepartmentsControllerIntegrationTest {
                 .isEqualTo(objectMapper.writeValueAsString(department1));
     }
 
-    @Order(5)
     @Test
     void deleteDepartment() throws Exception {
         mockMvc.perform(delete("/departments/2"))
@@ -151,7 +142,6 @@ class DepartmentsControllerIntegrationTest {
         assertThat(deletedDepartment).isNull();
     }
 
-    @Order(4)
     @Test
     void updateDepartment() throws Exception {
         Department newDepartment = new Department(1L, "Finance", 250L, 1700L, location2);
