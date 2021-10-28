@@ -3,10 +3,10 @@ package com.internship.webapp.controllers;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.internship.webapp.model.Employee;
-import lombok.RequiredArgsConstructor;
-import org.hibernate.Session;
-import org.hibernate.SessionFactory;
-import org.junit.jupiter.api.*;
+import com.internship.webapp.repositories.EmployeeRepository;
+import com.internship.webapp.servicies.EmployeeService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,7 +14,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import javax.persistence.EntityManager;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.List;
@@ -23,67 +22,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@RequiredArgsConstructor
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class EmployeesControllerIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    private final MockMvc mockMvc;
+    private final ObjectMapper objectMapper;
+    private final EmployeeService employeeService;
 
     @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private SessionFactory sessionFactory;
-
-    @Autowired
-    private EntityManager entityManager;
+    public EmployeesControllerIntegrationTest(MockMvc mockMvc,
+                                              ObjectMapper objectMapper,
+                                              EmployeeService employeeService) {
+        this.mockMvc = mockMvc;
+        this.objectMapper = objectMapper;
+        this.employeeService = employeeService;
+    }
 
     @BeforeEach
-    void init() {
+    void initTable() {
         objectMapper.disable(MapperFeature.USE_ANNOTATIONS);
     }
 
-    @BeforeAll
-    void initTable() {
 
-        Employee employee1 = new Employee(1L,
-                "Alexey",
-                "Neikulov",
-                10L,
-                "alex.neikulov@gmail.com",
-                "060748612",
-                Date.valueOf(LocalDate.of(2021, 10, 17)),
-                "IT_PROG",
-                17000,
-                null,
-                100L);
-        Employee employee2 = new Employee(2L,
-                "John",
-                "Wick",
-                10L,
-                "dog.wick@gmail.com",
-                "060748481",
-                Date.valueOf(LocalDate.of(2021, 10, 16)),
-                "IT_PROG",
-                15000,
-                null,
-                100L);
-
-        Session session = sessionFactory.openSession();
-        session.getTransaction().begin();
-        session.save(employee1);
-        session.save(employee2);
-        session.flush();
-        session.getTransaction().commit();
-    }
-
-
-    @Order(1)
     @Test
     void getEmployees() throws Exception {
 
@@ -112,6 +74,11 @@ class EmployeesControllerIntegrationTest {
                         100L)
         );
 
+        employeeService.save(expectedEmployees.get(0));
+        employeeService.save(expectedEmployees.get(1));
+
+        expectedEmployees = employeeService.findAll();
+
         MvcResult result = mockMvc.perform(get("/employees"))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -120,11 +87,10 @@ class EmployeesControllerIntegrationTest {
 
     }
 
-    @Order(3)
     @Test
     void addEmployee() throws Exception {
 
-        Employee addedEmployee = new Employee(3L,
+        Employee addedEmployee = new Employee(1L,
                 "Kagami",
                 "Taiga",
                 10L,
@@ -137,34 +103,36 @@ class EmployeesControllerIntegrationTest {
                 60L);
 
 
-        mockMvc.perform(post("/employees")
-                .contentType("application/json")
-                .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(addedEmployee))
-        ).andExpect(status().isOk());
+        MvcResult result = mockMvc.perform(post("/employees")
+                        .contentType("application/json")
+                        .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS)
+                                .writeValueAsString(addedEmployee)))
+                .andExpect(status().isOk())
+                .andReturn();
 
-        Employee newEmployee = entityManager.find(Employee.class, addedEmployee.getId());
+        Employee newEmployee = objectMapper.readValue(result.getResponse().getContentAsString(), Employee.class);
+        addedEmployee.setId(newEmployee.getId());
 
         assertThat(newEmployee).isEqualTo(addedEmployee);
 
     }
 
-    @Order(2)
     @Test
     void getEmployeeById() throws Exception {
         Employee expectedEmployee = new Employee(1L,
-                "Alexey",
-                "Neikulov",
+                "Vasilii",
+                "Pupkin",
                 10L,
-                "alex.neikulov@gmail.com",
-                "060748612",
+                "pup.vasin@gmail.com",
+                "060748696",
                 Date.valueOf(LocalDate.of(2021, 10, 17)),
                 "IT_PROG",
                 17000,
                 0D,
                 100L);
+        expectedEmployee = employeeService.save(expectedEmployee);
 
-
-        MvcResult result = mockMvc.perform(get("/employees/1"))
+        MvcResult result = mockMvc.perform(get("/employees/" + expectedEmployee.getId()))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -175,22 +143,34 @@ class EmployeesControllerIntegrationTest {
         assertThat(expectedEmployee.equals(resultEmployee)).isTrue();
     }
 
-    @Order(5)
     @Test
     void deleteEmployee() throws Exception {
-        mockMvc.perform(delete("/employees/2"))
+
+        Employee expectedEmployee = new Employee(1L,
+                "Dmitrii",
+                "Jones",
+                10L,
+                "jackn@gmail.com",
+                "060615010",
+                Date.valueOf(LocalDate.of(2020, 8, 11)),
+                "IT_PROG",
+                17000,
+                0D,
+                100L);
+        expectedEmployee = employeeService.save(expectedEmployee);
+
+        mockMvc.perform(delete("/employees/" + expectedEmployee.getId()))
                 .andExpect(status().isOk());
 
-        Employee deletedEmployee = entityManager.find(Employee.class, 2L);
+        Employee deletedEmployee = employeeService.findById(expectedEmployee.getId());
 
         assertThat(deletedEmployee).isNull();
     }
 
-    @Order(4)
     @Test
     void updateEmployee() throws Exception {
 
-        Employee updatedEmployee = new Employee(1L,
+        Employee addingEmployee = new Employee(1L,
                 "Kagami",
                 "Taiga",
                 10L,
@@ -202,14 +182,30 @@ class EmployeesControllerIntegrationTest {
                 0D,
                 60L);
 
+        addingEmployee = employeeService.save(addingEmployee);
 
-        mockMvc.perform(put("/employees/1")
+        Employee updatedEmployee = new Employee(1L,
+                "Tetsu",
+                "Kuroko",
+                10L,
+                "kuroko@gmail.com",
+                "789456123",
+                Date.valueOf(LocalDate.of(2020, 3, 2)),
+                "SOME_JOB",
+                1900,
+                0D,
+                60L);
+        updatedEmployee.setId(addingEmployee.getId());
+
+
+        mockMvc.perform(put("/employees/" + updatedEmployee.getId())
                 .contentType("application/json")
                 .content(objectMapper.disable(MapperFeature.USE_ANNOTATIONS).writeValueAsString(updatedEmployee))
         ).andExpect(status().isOk());
 
-        Employee actualEmployee = entityManager.find(Employee.class, updatedEmployee.getId());
+        Employee actualEmployee = employeeService.findById(updatedEmployee.getId());
 
-        assertThat(actualEmployee).isEqualTo(updatedEmployee);
+        assertThat(objectMapper.writeValueAsString(updatedEmployee))
+                .isEqualTo(objectMapper.writeValueAsString(actualEmployee));
     }
 }

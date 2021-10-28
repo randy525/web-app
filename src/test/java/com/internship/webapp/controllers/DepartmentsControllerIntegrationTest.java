@@ -4,10 +4,13 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.internship.webapp.model.Department;
 import com.internship.webapp.model.Location;
-import lombok.RequiredArgsConstructor;
+import com.internship.webapp.repositories.DepartmentsRepository;
+import com.internship.webapp.servicies.DepartmentsService;
+import org.hibernate.ReplicationMode;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,87 +21,64 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.persistence.EntityManager;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@RequiredArgsConstructor
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DepartmentsControllerIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    private final MockMvc mockMvc;
+    private final ObjectMapper objectMapper;
+    private final SessionFactory sessionFactory;
+    private final DepartmentsService departmentsService;
 
     @Autowired
-    private ObjectMapper objectMapper;
+    public DepartmentsControllerIntegrationTest(MockMvc mockMvc,
+                                                ObjectMapper objectMapper,
+                                                SessionFactory sessionFactory,
+                                                DepartmentsService departmentsService) {
 
-    @Autowired
-    private SessionFactory sessionFactory;
+        this.mockMvc = mockMvc;
+        this.objectMapper = objectMapper;
+        this.sessionFactory = sessionFactory;
+        this.departmentsService = departmentsService;
+    }
 
-    @Autowired
-    private EntityManager entityManager;
-
-    private Location location1;
-    private Location location2;
-    private Department department1;
-    private Department department2;
+    private final static Location location1 = new Location(1800L, "147 Spadina Ave", "M5V 2L7", "Toronto", "Ontario", "CA");
+    private final static Location location2 = new Location(1700L, "2004 Charade Rd", "98199", "Seattle", "Washington", "US");
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
     @Commit
-    void initLocations() {
-        location1 = new Location(1800L, "147 Spadina Ave", "M5V 2L7", "Toronto", "Ontario", "CA");
-        location2 = new Location(1700L, "2004 Charade Rd", "98199", "Seattle", "Washington", "US");
-
-        Session session = sessionFactory.openSession();
-
-        session.getTransaction().begin();
-        session.save(location1);
-        session.save(location2);
-        session.flush();
-        session.getTransaction().commit();
-        session.close();
-    }
-
-    @Transactional(isolation = Isolation.SERIALIZABLE)
-    @Commit
-    void initDepartments() {
-        department1 = new Department(1L, "Administration", 200L, 1700L, location2);
-        department2 = new Department(2L, "Marketing", 201L, 1800L, location1);
-
-        Session session = sessionFactory.openSession();
-
-        session.getTransaction().begin();
-        session.save(department1);
-        session.save(department2);
-        session.flush();
-        session.getTransaction().commit();
-        session.close();
-    }
-
-    @BeforeAll
-    void insertData() throws InterruptedException {
-        initLocations();
-        initDepartments();
-    }
-
     @BeforeEach
-    void init() {
+    void initDepartments() {
         objectMapper.disable(MapperFeature.USE_ANNOTATIONS);
+
+        Session session = sessionFactory.openSession();
+
+        session.getTransaction().begin();
+        session.replicate(location1, ReplicationMode.IGNORE);
+        session.replicate(location2, ReplicationMode.IGNORE);
+        session.getTransaction().commit();
+
+        session.close();
     }
 
 
-    @Order(1)
     @Test
     void getDepartments() throws Exception {
 
-        List<Department> expectedDepartments = List.of(department1, department2);
+        Department department1 = new Department(1L, "Administration", 200L, 1700L, location2);
+        Department department2 = new Department(2L, "Marketing", 201L, 1800L, location1);
+
+        departmentsService.save(department1);
+        departmentsService.save(department2);
+
+        List<Department> expectedDepartments = departmentsService.findAll();
 
         MvcResult result = mockMvc.perform(get("/departments"))
                 .andExpect(status().isOk())
@@ -108,28 +88,33 @@ class DepartmentsControllerIntegrationTest {
                 .isEqualTo(objectMapper.writeValueAsString(expectedDepartments));
     }
 
-    @Order(3)
     @Test
     void addDepartment() throws Exception {
-        Department newDepartment = new Department(3L, "Administration", 205L, 1700L, location2);
 
-        mockMvc.perform(post("/departments")
+        Department newDepartment = new Department(1L, "Administration", 205L, 1700L, location2);
+
+        MvcResult result = mockMvc.perform(post("/departments")
                         .contentType("application/json")
                         .content(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(newDepartment)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andReturn();
 
-        Department actualDepartment = entityManager.find(Department.class, 3L);
+        Department actualDepartment = objectMapper.readValue(result.getResponse().getContentAsString(), Department.class);
+        newDepartment.setId(actualDepartment.getId());
 
         assertThat(objectMapper.writeValueAsString(actualDepartment))
                 .isEqualTo(objectMapper.writeValueAsString(newDepartment));
     }
 
 
-    @Order(2)
     @Test
     void getDepartmentById() throws Exception {
 
-        MvcResult result = mockMvc.perform(get("/departments/1"))
+        Department department = new Department(1L, "Name1", 200L, 1700L, location2);
+
+        department = departmentsService.save(department);
+
+        MvcResult result = mockMvc.perform(get("/departments/" + department.getId()))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -138,31 +123,37 @@ class DepartmentsControllerIntegrationTest {
                 .readValue(result.getResponse().getContentAsString());
 
         assertThat(objectMapper.writeValueAsString(resultDepartment))
-                .isEqualTo(objectMapper.writeValueAsString(department1));
+                .isEqualTo(objectMapper.writeValueAsString(resultDepartment));
     }
 
-    @Order(5)
     @Test
     void deleteDepartment() throws Exception {
-        mockMvc.perform(delete("/departments/2"))
+
+        Department department = new Department(1L, "Name2", 200L, 1700L, location2);
+
+        departmentsService.save(department);
+
+        mockMvc.perform(delete("/departments/" + department.getId()))
                 .andExpect(status().isOk());
 
-        Department deletedDepartment = entityManager.find(Department.class, 2L);
+        Department deletedDepartment = departmentsService.findById(department.getId());
 
         assertThat(deletedDepartment).isNull();
     }
 
-    @Order(4)
     @Test
     void updateDepartment() throws Exception {
         Department newDepartment = new Department(1L, "Finance", 250L, 1700L, location2);
 
-        mockMvc.perform(put("/departments/1")
+        newDepartment = departmentsService.save(newDepartment);
+
+
+        mockMvc.perform(put("/departments/" + newDepartment.getId())
                         .contentType("application/json")
-                        .content(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(newDepartment)))
+                        .content(objectMapper.writeValueAsString(newDepartment)))
                 .andExpect(status().isOk());
 
-        Department actualDepartment = entityManager.find(Department.class, 1L);
+        Department actualDepartment = departmentsService.findById(newDepartment.getId());
 
         assertThat(objectMapper.writeValueAsString(actualDepartment))
                 .isEqualTo(objectMapper.writeValueAsString(newDepartment));
