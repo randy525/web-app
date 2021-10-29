@@ -1,4 +1,4 @@
-package com.internship.webapp.webapp;
+package com.internship.webapp;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
