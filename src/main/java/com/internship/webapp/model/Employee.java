@@ -1,13 +1,8 @@
 package com.internship.webapp.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonView;
-import com.internship.webapp.validation.UniqueField;
 import lombok.*;
-import org.hibernate.validator.constraints.UniqueElements;
 
 import javax.persistence.*;
-import javax.validation.Constraint;
 import javax.validation.constraints.*;
 import java.sql.Date;
 import java.util.Objects;

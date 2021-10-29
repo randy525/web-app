@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.internship.webapp.model.Department;
 import com.internship.webapp.model.Location;
-import com.internship.webapp.repositories.DepartmentsRepository;
 import com.internship.webapp.servicies.DepartmentsService;
 import org.hibernate.ReplicationMode;
 import org.hibernate.Session;
